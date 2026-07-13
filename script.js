@@ -100,9 +100,9 @@ function buildHeaderHTML(active) {
     '<header>' +
       '<div class="wrap nav">' +
         '<a href="index.html" class="logo"><span class="mark"></span> آینده‌سازان</a>' +
-        '<button class="burger" aria-label="باز کردن منو" aria-expanded="false" aria-controls="mainNav">☰</button>' +
+        '<button class="burger" id="burgerBtn" aria-label="باز کردن منو" aria-expanded="false">☰</button>' +
         '<nav class="navlinks" id="mainNav">' + links + '</nav>' +
-        '<div class="nav-actions">' + actions + '</div>' +
+        '<div class="nav-actions" id="navActions">' + actions + '</div>' +
       '</div>' +
     '</header>' +
     '<div class="ticker"><div class="ticker-track" id="tickerTrack"></div></div>'
@@ -138,6 +138,45 @@ function initHeader(active) {
   if (!el) return;
   el.outerHTML = buildHeaderHTML(active);
 
+  // ===== مدیریت منوی همبرگری =====
+  var burger = document.getElementById('burgerBtn');
+  var navlinks = document.getElementById('mainNav');
+  var navActions = document.getElementById('navActions');
+
+  if (burger && navlinks) {
+    burger.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var isOpen = navlinks.classList.toggle('open');
+      burger.textContent = isOpen ? '✕' : '☰';
+      burger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      document.body.style.overflow = isOpen ? 'hidden' : '';
+    });
+
+    // بستن منو با کلیک روی لینک‌ها
+    navlinks.querySelectorAll('a').forEach(function(link) {
+      link.addEventListener('click', function() {
+        navlinks.classList.remove('open');
+        burger.textContent = '☰';
+        burger.setAttribute('aria-expanded', 'false');
+        document.body.style.overflow = '';
+      });
+    });
+
+    // بستن منو با کلیک بیرون
+    document.addEventListener('click', function(e) {
+      if (navlinks.classList.contains('open')) {
+        var isClickInside = navlinks.contains(e.target) || burger.contains(e.target);
+        if (!isClickInside) {
+          navlinks.classList.remove('open');
+          burger.textContent = '☰';
+          burger.setAttribute('aria-expanded', 'false');
+          document.body.style.overflow = '';
+        }
+      }
+    });
+  }
+
+  // ===== دکمه خروج =====
   var logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', function(e) {
@@ -152,32 +191,6 @@ function initFooter() {
   if (!el) return;
   el.outerHTML = buildFooterHTML();
 }
-
-// ============================================
-// BURGER MENU
-// ============================================
-document.addEventListener('DOMContentLoaded', function() {
-  var burger = document.querySelector('.burger');
-  var navlinks = document.querySelector('.navlinks');
-
-  if (burger && navlinks) {
-    burger.addEventListener('click', function() {
-      var open = navlinks.classList.toggle('open');
-      burger.textContent = open ? '✕' : '☰';
-      burger.setAttribute('aria-expanded', open ? 'true' : 'false');
-      document.body.style.overflow = open ? 'hidden' : '';
-    });
-
-    navlinks.querySelectorAll('a').forEach(function(link) {
-      link.addEventListener('click', function() {
-        navlinks.classList.remove('open');
-        burger.textContent = '☰';
-        burger.setAttribute('aria-expanded', 'false');
-        document.body.style.overflow = '';
-      });
-    });
-  }
-});
 
 // ============================================
 // TICKER DATA
@@ -218,15 +231,15 @@ function hideSplash() {
     splash.classList.add('hide');
     setTimeout(function() {
       splash.style.display = 'none';
-    }, 800);
+    }, 500);
   }
 }
 
 if (document.readyState === 'complete') {
-  setTimeout(hideSplash, 1200);
+  setTimeout(hideSplash, 1000);
 } else {
   window.addEventListener('load', function() {
-    setTimeout(hideSplash, 1200);
+    setTimeout(hideSplash, 1000);
   });
 }
 
@@ -234,10 +247,13 @@ if (document.readyState === 'complete') {
 // SCROLL PROGRESS BAR
 // ============================================
 function initScrollProgress() {
-  var bar = document.createElement('div');
-  bar.className = 'scroll-progress';
-  bar.id = 'scrollProgress';
-  document.body.prepend(bar);
+  var bar = document.getElementById('scrollProgress');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.className = 'scroll-progress';
+    bar.id = 'scrollProgress';
+    document.body.prepend(bar);
+  }
 
   window.addEventListener('scroll', function() {
     var scrollTop = window.scrollY;
@@ -426,11 +442,11 @@ function initSupportForm() {
   form.addEventListener('submit', function(e) {
     e.preventDefault();
     var msg = document.getElementById('supportMsg');
-    showFormMessage(msg);
+    showFormMessage(msg, '✅ تیکت شما با موفقیت ثبت شد!');
     form.reset();
     setTimeout(function() {
       msg.classList.remove('show');
-    }, 5000);
+    }, 4000);
   });
 }
 
@@ -455,10 +471,15 @@ function initPaymentPage() {
   var plan = urlParams.get('plan') || '25k';
   var selected = PLANS[plan] || PLANS['25k'];
 
-  document.getElementById('planDisplay').textContent = selected.label;
-  document.getElementById('priceDisplay').textContent = selected.price;
-  document.getElementById('usdtDisplay').textContent = selected.usdt + ' USDT';
-  document.getElementById('usdtAmount').textContent = selected.usdt + ' USDT';
+  var planDisplay = document.getElementById('planDisplay');
+  var priceDisplay = document.getElementById('priceDisplay');
+  var usdtDisplay = document.getElementById('usdtDisplay');
+  var usdtAmount = document.getElementById('usdtAmount');
+
+  if (planDisplay) planDisplay.textContent = selected.label;
+  if (priceDisplay) priceDisplay.textContent = selected.price;
+  if (usdtDisplay) usdtDisplay.textContent = selected.usdt + ' USDT';
+  if (usdtAmount) usdtAmount.textContent = selected.usdt + ' USDT';
 
   var copyBtn = document.getElementById('copyBtn');
   var addressEl = document.getElementById('walletAddress');
@@ -472,19 +493,21 @@ function initPaymentPage() {
     }, 3000);
   }
 
-  copyBtn.addEventListener('click', function() {
-    var address = addressEl.textContent;
-    var btn = this;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(address).then(function() {
-        flashCopied(btn);
-      }).catch(function() {
+  if (copyBtn && addressEl) {
+    copyBtn.addEventListener('click', function() {
+      var address = addressEl.textContent;
+      var btn = this;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(address).then(function() {
+          flashCopied(btn);
+        }).catch(function() {
+          fallbackCopy(address, btn);
+        });
+      } else {
         fallbackCopy(address, btn);
-      });
-    } else {
-      fallbackCopy(address, btn);
-    }
-  });
+      }
+    });
+  }
 
   function fallbackCopy(text, btn) {
     var textArea = document.createElement('textarea');
@@ -507,6 +530,7 @@ function initPaymentPage() {
   var msg = document.getElementById('paymentMsg');
 
   function validateHash(showError) {
+    if (!txHash) return false;
     var value = txHash.value.trim();
     if (!value) {
       clearFieldError(txHash, hashHint, 'هش را از صرافی یا کیف پول خود کپی کنید');
@@ -522,15 +546,17 @@ function initPaymentPage() {
     return true;
   }
 
-  txHash.addEventListener('blur', function() { validateHash(true); });
-  txHash.addEventListener('focus', function() {
-    txHash.classList.remove('invalid');
-    txHash.removeAttribute('aria-invalid');
-  });
+  if (txHash) {
+    txHash.addEventListener('blur', function() { validateHash(true); });
+    txHash.addEventListener('focus', function() {
+      txHash.classList.remove('invalid');
+      txHash.removeAttribute('aria-invalid');
+    });
+  }
 
   submitBtn.addEventListener('click', async function() {
     if (!validateHash(true)) {
-      txHash.focus();
+      if (txHash) txHash.focus();
       return;
     }
 
@@ -541,7 +567,7 @@ function initPaymentPage() {
     try {
       const plan = urlParams.get('plan') || '25k';
       const amount = parseFloat(selected.usdt);
-      const txHashValue = txHash.value.trim();
+      const txHashValue = txHash ? txHash.value.trim() : '';
 
       await apiRequest('/challenges', 'POST', {
         plan: plan,
@@ -549,24 +575,35 @@ function initPaymentPage() {
         txHash: txHashValue
       });
 
-      showFormMessage(msg, '✅ درخواست شما با موفقیت ثبت شد! تیم پشتیبانی تراکنش را بررسی می‌کند.');
+      if (msg) showFormMessage(msg, '✅ درخواست شما با موفقیت ثبت شد!');
 
-      document.getElementById('step2').classList.remove('active');
-      document.getElementById('step2').classList.add('done');
-      document.getElementById('step2').querySelector('.num').textContent = '✓';
-
-      document.getElementById('step3').classList.remove('active');
-      document.getElementById('step3').classList.add('done');
-      document.getElementById('step3').querySelector('.num').textContent = '✓';
+      var step2 = document.getElementById('step2');
+      var step3 = document.getElementById('step3');
+      
+      if (step2) {
+        step2.classList.remove('active');
+        step2.classList.add('done');
+        var num2 = step2.querySelector('.num');
+        if (num2) num2.textContent = '✓';
+      }
+      
+      if (step3) {
+        step3.classList.remove('active');
+        step3.classList.add('done');
+        var num3 = step3.querySelector('.num');
+        if (num3) num3.textContent = '✓';
+      }
 
       btn.textContent = '✅ ثبت شد';
       btn.style.opacity = '0.6';
-      txHash.disabled = true;
+      if (txHash) txHash.disabled = true;
 
     } catch (error) {
-      showFormMessage(msg, '❌ ' + error.message);
-      msg.style.borderColor = 'var(--red)';
-      msg.style.color = 'var(--red)';
+      if (msg) {
+        showFormMessage(msg, '❌ ' + error.message);
+        msg.style.borderColor = 'var(--red)';
+        msg.style.color = 'var(--red)';
+      }
       btn.disabled = false;
       btn.textContent = '✅ ثبت هش و ارسال درخواست';
     }
@@ -585,7 +622,7 @@ async function loadDashboardData() {
     
     const nameEl = document.querySelector('.dash-head h1');
     if (nameEl) {
-      nameEl.textContent = `سلام، ${userName} گرامی 👋`;
+      nameEl.textContent = 'سلام، ' + userName + ' گرامی 👋';
     }
 
     const challenges = await apiRequest('/challenges');
@@ -600,7 +637,7 @@ async function loadDashboardData() {
 // INITIALIZATION
 // ============================================
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('📱 آینده‌سازان - نسخه تولید');
+  console.log('📱 آینده‌سازان - نسخه موبایل');
   console.log('🌐 آدرس سرور:', API_URL);
   
   initLoginForm();

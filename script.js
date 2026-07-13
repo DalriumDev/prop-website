@@ -8,8 +8,24 @@ var NAV_ITEMS = [
   { key: 'support', href: 'support.html', label: 'پشتیبانی' }
 ];
 
+// ============================================
+// API CONFIG - آدرس سرور در Render
+// ============================================
+const API_BASE_URL = 'https://prop-website-tpqz.onrender.com';
+const API_URL = `${API_BASE_URL}/api`;
+
+console.log('📡 API URL:', API_URL);
+console.log('🌐 محیط:', 'production');
+
+// ============================================
+// توابع احراز هویت
+// ============================================
 function isLoggedIn() {
-  return localStorage.getItem('isLoggedIn') === 'true';
+  return !!localStorage.getItem('authToken');
+}
+
+function getAuthToken() {
+  return localStorage.getItem('authToken');
 }
 
 function redirectToLogin(redirectTo) {
@@ -18,9 +34,50 @@ function redirectToLogin(redirectTo) {
 }
 
 function logout() {
-  localStorage.removeItem('isLoggedIn');
+  localStorage.removeItem('authToken');
   localStorage.removeItem('userEmail');
+  localStorage.removeItem('userName');
   window.location.href = 'index.html';
+}
+
+// ============================================
+// API REQUESTS
+// ============================================
+async function apiRequest(endpoint, method = 'GET', data = null) {
+  const url = `${API_URL}${endpoint}`;
+  console.log('📤 ارسال درخواست به:', url);
+  
+  const options = {
+    method,
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  };
+
+  const token = getAuthToken();
+  if (token) {
+    options.headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  if (data) {
+    options.body = JSON.stringify(data);
+  }
+
+  try {
+    const response = await fetch(url, options);
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || 'خطا در ارتباط با سرور');
+    }
+
+    return result;
+  } catch (error) {
+    if (error.message === 'Failed to fetch') {
+      throw new Error('❌ سرور در دسترس نیست! لطفاً:\n1. اتصال اینترنت خود را بررسی کنید\n2. آدرس سرور درست است: ' + API_URL);
+    }
+    throw error;
+  }
 }
 
 // ============================================
@@ -34,10 +91,10 @@ function buildHeaderHTML(active) {
 
   var actions;
   if (isLoggedIn()) {
-    var dashLink = active === 'dashboard' ? '' : '<a href="dashboard.html" class="btn btn-ghost">داشبورد</a>';
-    actions = dashLink + '<a href="#" class="btn btn-gold" id="logoutBtn">خروج</a>';
+    var dashLink = active === 'dashboard' ? '' : '<a href="dashboard.html" class="btn btn-ghost btn-sm">داشبورد</a>';
+    actions = dashLink + '<a href="#" class="btn btn-gold btn-sm" id="logoutBtn">خروج</a>';
   } else {
-    actions = '<a href="login.html" class="btn btn-ghost">ورود</a><a href="signup.html" class="btn btn-gold">ثبت‌نام</a>';
+    actions = '<a href="login.html" class="btn btn-ghost btn-sm">ورود</a><a href="signup.html" class="btn btn-gold btn-sm">ثبت‌نام</a>';
   }
 
   return (
@@ -109,6 +166,7 @@ document.addEventListener('DOMContentLoaded', function() {
       var open = navlinks.classList.toggle('open');
       burger.textContent = open ? '✕' : '☰';
       burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+      document.body.style.overflow = open ? 'hidden' : '';
     });
 
     navlinks.querySelectorAll('a').forEach(function(link) {
@@ -116,40 +174,10 @@ document.addEventListener('DOMContentLoaded', function() {
         navlinks.classList.remove('open');
         burger.textContent = '☰';
         burger.setAttribute('aria-expanded', 'false');
+        document.body.style.overflow = '';
       });
     });
   }
-});
-
-// ============================================
-// FAQ ACCORDION
-// ============================================
-document.addEventListener('DOMContentLoaded', function() {
-  document.querySelectorAll('.faq-item').forEach(function(item, i) {
-    var btn = item.querySelector('.faq-q');
-    var answer = item.querySelector('.faq-a');
-    if (!btn || !answer) return;
-
-    var answerId = 'faqAnswer' + i;
-    answer.id = answerId;
-    btn.setAttribute('aria-expanded', item.classList.contains('open') ? 'true' : 'false');
-    btn.setAttribute('aria-controls', answerId);
-
-    btn.addEventListener('click', function() {
-      var wasOpen = item.classList.contains('open');
-
-      document.querySelectorAll('.faq-item').forEach(function(other) {
-        if (other !== item) {
-          other.classList.remove('open');
-          var otherBtn = other.querySelector('.faq-q');
-          if (otherBtn) otherBtn.setAttribute('aria-expanded', 'false');
-        }
-      });
-
-      item.classList.toggle('open', !wasOpen);
-      btn.setAttribute('aria-expanded', !wasOpen ? 'true' : 'false');
-    });
-  });
 });
 
 // ============================================
@@ -189,14 +217,17 @@ function hideSplash() {
   var splash = document.getElementById('splash');
   if (splash) {
     splash.classList.add('hide');
+    setTimeout(function() {
+      splash.style.display = 'none';
+    }, 800);
   }
 }
 
 if (document.readyState === 'complete') {
-  setTimeout(hideSplash, 1500);
+  setTimeout(hideSplash, 1200);
 } else {
   window.addEventListener('load', function() {
-    setTimeout(hideSplash, 1500);
+    setTimeout(hideSplash, 1200);
   });
 }
 
@@ -224,28 +255,27 @@ if (document.readyState === 'loading') {
 }
 
 // ============================================
-// CARD MOUSE GLOW EFFECT
+// CARD TOUCH EFFECTS
 // ============================================
-function initCardGlow() {
+function initCardTouch() {
   document.querySelectorAll('.ticket-card, .cell, .panel').forEach(function(card) {
-    card.addEventListener('mousemove', function(e) {
-      var rect = this.getBoundingClientRect();
-      var x = ((e.clientX - rect.left) / rect.width) * 100;
-      var y = ((e.clientY - rect.top) / rect.height) * 100;
-      this.style.setProperty('--mouse-x', x + '%');
-      this.style.setProperty('--mouse-y', y + '%');
-    });
+    card.addEventListener('touchstart', function() {
+      this.style.transform = 'scale(0.98)';
+    }, { passive: true });
+    card.addEventListener('touchend', function() {
+      this.style.transform = '';
+    }, { passive: true });
   });
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initCardGlow);
+  document.addEventListener('DOMContentLoaded', initCardTouch);
 } else {
-  initCardGlow();
+  initCardTouch();
 }
 
 // ============================================
-// GENERIC FORM
+// FORM HELPERS
 // ============================================
 function showFormMessage(msgEl, text) {
   if (!text) text = msgEl.dataset.defaultText || msgEl.textContent;
@@ -273,32 +303,50 @@ function clearFieldError(input, hintEl, restoreText) {
 }
 
 // ============================================
-// LOGIN
+// LOGIN FORM
 // ============================================
 function initLoginForm() {
   var form = document.getElementById('loginForm');
   if (!form) return;
 
-  form.addEventListener('submit', function(e) {
+  form.addEventListener('submit', async function(e) {
     e.preventDefault();
 
-    localStorage.setItem('isLoggedIn', 'true');
-    localStorage.setItem('userEmail', document.getElementById('lemail').value);
-
+    var email = document.getElementById('lemail').value.trim();
+    var password = document.getElementById('lpassword').value;
     var msg = document.getElementById('loginMsg');
-    showFormMessage(msg);
+    var btn = form.querySelector('button[type="submit"]');
 
-    var redirectUrl = localStorage.getItem('redirectAfterLogin') || 'dashboard.html';
-    localStorage.removeItem('redirectAfterLogin');
+    btn.disabled = true;
+    btn.textContent = '⏳ در حال ورود...';
 
-    setTimeout(function() {
-      window.location.href = redirectUrl;
-    }, 1200);
+    try {
+      const result = await apiRequest('/auth/login', 'POST', { email, password });
+
+      localStorage.setItem('authToken', result.token);
+      localStorage.setItem('userEmail', result.user.email);
+      localStorage.setItem('userName', result.user.fullName);
+
+      showFormMessage(msg, '✅ ورود با موفقیت انجام شد! در حال انتقال...');
+
+      var redirectUrl = localStorage.getItem('redirectAfterLogin') || 'dashboard.html';
+      localStorage.removeItem('redirectAfterLogin');
+
+      setTimeout(function() {
+        window.location.href = redirectUrl;
+      }, 1200);
+    } catch (error) {
+      showFormMessage(msg, '❌ ' + error.message);
+      msg.style.borderColor = 'var(--red)';
+      msg.style.color = 'var(--red)';
+      btn.disabled = false;
+      btn.textContent = 'ورود';
+    }
   });
 }
 
 // ============================================
-// SIGNUP
+// SIGNUP FORM
 // ============================================
 function initSignupForm() {
   var form = document.getElementById('signupForm');
@@ -317,7 +365,7 @@ function initSignupForm() {
       showFieldError(pass2, hint, 'رمز عبور و تکرار آن یکسان نیستند');
       return false;
     }
-    clearFieldError(pass2, hint, 'رمزها مطابقت دارند ✓');
+    clearFieldError(pass2, hint, '✅ رمزها مطابقت دارند');
     return true;
   }
 
@@ -326,7 +374,7 @@ function initSignupForm() {
     if (pass2.value) checkMatch();
   });
 
-  form.addEventListener('submit', function(e) {
+  form.addEventListener('submit', async function(e) {
     e.preventDefault();
 
     if (!checkMatch()) {
@@ -335,19 +383,42 @@ function initSignupForm() {
     }
 
     var msg = document.getElementById('signupMsg');
-    showFormMessage(msg);
+    var fullName = document.getElementById('fullname').value.trim();
+    var email = document.getElementById('email').value.trim();
+    var password = document.getElementById('password').value;
+    var btn = form.querySelector('button[type="submit"]');
 
-    localStorage.setItem('isLoggedIn', 'true');
-    localStorage.setItem('userEmail', document.getElementById('email').value);
+    btn.disabled = true;
+    btn.textContent = '⏳ در حال ثبت‌نام...';
 
-    setTimeout(function() {
-      window.location.href = 'payment.html';
-    }, 1500);
+    try {
+      const result = await apiRequest('/auth/register', 'POST', {
+        fullName,
+        email,
+        password
+      });
+
+      localStorage.setItem('authToken', result.token);
+      localStorage.setItem('userEmail', result.user.email);
+      localStorage.setItem('userName', result.user.fullName);
+
+      showFormMessage(msg, '✅ ثبت‌نام با موفقیت انجام شد! در حال انتقال...');
+
+      setTimeout(function() {
+        window.location.href = 'challenges.html';
+      }, 1500);
+    } catch (error) {
+      showFormMessage(msg, '❌ ' + error.message);
+      msg.style.borderColor = 'var(--red)';
+      msg.style.color = 'var(--red)';
+      btn.disabled = false;
+      btn.textContent = 'ساخت حساب';
+    }
   });
 }
 
 // ============================================
-// SUPPORT
+// SUPPORT FORM
 // ============================================
 function initSupportForm() {
   var form = document.getElementById('supportForm');
@@ -358,11 +429,14 @@ function initSupportForm() {
     var msg = document.getElementById('supportMsg');
     showFormMessage(msg);
     form.reset();
+    setTimeout(function() {
+      msg.classList.remove('show');
+    }, 5000);
   });
 }
 
 // ============================================
-// PAYMENT
+// PAYMENT PAGE
 // ============================================
 var PLANS = {
   '10k': { label: '۱۰,۰۰۰ دلار', price: '$59', usdt: '۵۹' },
@@ -370,6 +444,7 @@ var PLANS = {
   '50k': { label: '۵۰,۰۰۰ دلار', price: '$229', usdt: '۲۲۹' },
   '100k': { label: '۱۰۰,۰۰۰ دلار', price: '$429', usdt: '۴۲۹' }
 };
+
 var WALLET_ADDRESS = 'TQmZ5q3x9Y7v2W4k8L6nP1oR3sT5uV7wX9';
 var TX_HASH_PATTERN = /^[a-fA-F0-9]{64}$/;
 
@@ -401,18 +476,32 @@ function initPaymentPage() {
   copyBtn.addEventListener('click', function() {
     var address = addressEl.textContent;
     var btn = this;
-    navigator.clipboard.writeText(address).then(function() {
-      flashCopied(btn);
-    }).catch(function() {
-      var textArea = document.createElement('textarea');
-      textArea.value = address;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      flashCopied(btn);
-    });
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(address).then(function() {
+        flashCopied(btn);
+      }).catch(function() {
+        fallbackCopy(address, btn);
+      });
+    } else {
+      fallbackCopy(address, btn);
+    }
   });
+
+  function fallbackCopy(text, btn) {
+    var textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.opacity = '0';
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      flashCopied(btn);
+    } catch (err) {
+      alert('لطفاً آدرس را دستی کپی کنید: ' + text);
+    }
+    document.body.removeChild(textArea);
+  }
 
   var txHash = document.getElementById('txHash');
   var hashHint = document.getElementById('txHashHint');
@@ -421,16 +510,16 @@ function initPaymentPage() {
   function validateHash(showError) {
     var value = txHash.value.trim();
     if (!value) {
-      clearFieldError(txHash, hashHint, 'هش را از صرافی یا کیف پول خود کپی کنید و در اینجا بچسبانید');
+      clearFieldError(txHash, hashHint, 'هش را از صرافی یا کیف پول خود کپی کنید');
       return false;
     }
     if (!TX_HASH_PATTERN.test(value)) {
       if (showError) {
-        showFieldError(txHash, hashHint, 'هش تراکنش باید ۶۴ کاراکتر عددی-حروفی (hex) باشد');
+        showFieldError(txHash, hashHint, '❌ هش باید ۶۴ کاراکتر عددی-حروفی (hex) باشد');
       }
       return false;
     }
-    clearFieldError(txHash, hashHint, 'فرمت هش معتبر است ✓');
+    clearFieldError(txHash, hashHint, '✅ فرمت هش معتبر است');
     return true;
   }
 
@@ -440,33 +529,87 @@ function initPaymentPage() {
     txHash.removeAttribute('aria-invalid');
   });
 
-  submitBtn.addEventListener('click', function() {
+  submitBtn.addEventListener('click', async function() {
     if (!validateHash(true)) {
       txHash.focus();
       return;
     }
 
-    showFormMessage(msg);
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = '⏳ در حال ثبت...';
 
-    document.getElementById('step2').classList.remove('active');
-    document.getElementById('step2').classList.add('done');
-    document.getElementById('step2').querySelector('.num').textContent = '✓';
+    try {
+      const plan = urlParams.get('plan') || '25k';
+      const amount = parseFloat(selected.usdt);
+      const txHashValue = txHash.value.trim();
 
-    document.getElementById('step3').classList.remove('active');
-    document.getElementById('step3').classList.add('done');
-    document.getElementById('step3').querySelector('.num').textContent = '✓';
+      await apiRequest('/challenges', 'POST', {
+        plan: plan,
+        amount: amount,
+        txHash: txHashValue
+      });
 
-    this.disabled = true;
-    this.textContent = '✅ درخواست ثبت شد';
-    this.style.opacity = '0.6';
+      showFormMessage(msg, '✅ درخواست شما با موفقیت ثبت شد! تیم پشتیبانی تراکنش را بررسی می‌کند.');
 
-    txHash.disabled = true;
+      document.getElementById('step2').classList.remove('active');
+      document.getElementById('step2').classList.add('done');
+      document.getElementById('step2').querySelector('.num').textContent = '✓';
+
+      document.getElementById('step3').classList.remove('active');
+      document.getElementById('step3').classList.add('done');
+      document.getElementById('step3').querySelector('.num').textContent = '✓';
+
+      btn.textContent = '✅ ثبت شد';
+      btn.style.opacity = '0.6';
+      txHash.disabled = true;
+
+    } catch (error) {
+      showFormMessage(msg, '❌ ' + error.message);
+      msg.style.borderColor = 'var(--red)';
+      msg.style.color = 'var(--red)';
+      btn.disabled = false;
+      btn.textContent = '✅ ثبت هش و ارسال درخواست';
+    }
   });
 }
 
+// ============================================
+// DASHBOARD - LOAD DATA
+// ============================================
+async function loadDashboardData() {
+  if (!isLoggedIn()) return;
+
+  try {
+    const profile = await apiRequest('/profile');
+    const userName = profile.user?.fullName || localStorage.getItem('userName') || 'معامله‌گر';
+    
+    const nameEl = document.querySelector('.dash-head h1');
+    if (nameEl) {
+      nameEl.textContent = `سلام، ${userName} گرامی 👋`;
+    }
+
+    const challenges = await apiRequest('/challenges');
+    console.log('📊 چالش‌های کاربر:', challenges);
+    
+  } catch (error) {
+    console.error('خطا در بارگذاری داشبورد:', error);
+  }
+}
+
+// ============================================
+// INITIALIZATION
+// ============================================
 document.addEventListener('DOMContentLoaded', function() {
+  console.log('📱 آینده‌سازان - نسخه تولید');
+  console.log('🌐 آدرس سرور:', API_URL);
+  
   initLoginForm();
   initSignupForm();
   initSupportForm();
   initPaymentPage();
+  
+  if (document.querySelector('.dash-head')) {
+    loadDashboardData();
+  }
 });
